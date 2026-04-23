@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "src/app/api/bot/webhook/route.js": {
+      "maxDuration": 30
+    },
+    "src/app/api/admin/announcements/route.js": {
+      "maxDuration": 60
+    }
+  }
+}

@@ -1,0 +1,132 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id       Int     @id @default(autoincrement())
+  name     String
+  username String  @unique
+  password String
+  isActive Boolean @default(true) @map("is_active")
+  role     String  @default("MANAGER")
+
+  @@map("users")
+}
+
+model Client {
+  id          Int     @id @default(autoincrement())
+  chatId      BigInt  @unique @map("chat_id")
+  name        String?
+  phoneNumber String? @map("phone_number")
+  city        String?
+  address     String?
+  isActive    Boolean @default(true) @map("is_active")
+  orders      Order[]
+
+  @@map("clients")
+}
+
+model Category {
+  id       Int       @id @default(autoincrement())
+  name     String
+  products Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id          Int       @id @default(autoincrement())
+  categoryId  Int?      @map("category_id")
+  category    Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  photoUrl    String    @map("photo_url")
+  name        String
+  description String    @db.VarChar(2550)
+  price       BigInt
+  stockQty    Int       @default(0) @map("stock_quantity")
+  isActive    Boolean   @default(true) @map("is_active")
+
+  @@map("products")
+}
+
+model Order {
+  id              Int         @id @default(autoincrement())
+  clientId        Int         @map("client_id")
+  client          Client      @relation(fields: [clientId], references: [id])
+  createdDate     DateTime    @default(now()) @map("created_date")
+  status          String      @default("WAITING")
+  amount          BigInt
+  discountAmount  BigInt      @default(0) @map("discount_amount")
+  paymentMethod   String?     @map("payment_method")
+  paymentProofId  String?     @map("payment_proof_id")
+  paymentStatus   String      @default("PENDING") @map("payment_status")
+  items           OrderItem[]
+
+  @@index([clientId, createdDate])
+  @@map("orders")
+}
+
+model OrderItem {
+  id           Int    @id @default(autoincrement())
+  orderId      Int    @map("order_id")
+  order        Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId    Int?   @map("product_id")
+  quantity     Int
+  productName  String @map("product_name")
+  productPrice BigInt @map("product_price")
+
+  @@map("orders_items")
+}
+
+model Message {
+  id          Int    @id @default(autoincrement())
+  name        String @unique
+  description String
+  text        String @db.VarChar(4096)
+
+  @@map("messages")
+}
+
+model BotSettings {
+  id          Int    @id @default(1)
+  upiId       String @default("") @map("upi_id")
+  usdtAddress String @default("") @map("usdt_address")
+  usdtNetwork String @default("TRC20") @map("usdt_network")
+
+  @@map("bot_settings")
+}
+
+model AdminChatSession {
+  id           Int      @id @default(autoincrement())
+  adminChatId  BigInt   @map("admin_chat_id")
+  clientChatId BigInt   @map("client_chat_id")
+  clientName   String?  @map("client_name")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("admin_chat_sessions")
+}
+
+model Announcement {
+  id        Int      @id @default(autoincrement())
+  text      String   @db.VarChar(4096)
+  sentBy    String   @map("sent_by")
+  sentAt    DateTime @default(now()) @map("sent_at")
+  totalSent Int      @default(0) @map("total_sent")
+
+  @@map("announcements")
+}
+
+model Cart {
+  id        Int    @id @default(autoincrement())
+  chatId    BigInt @map("chat_id")
+  productId Int    @map("product_id")
+  quantity  Int    @default(1)
+
+  @@unique([chatId, productId])
+  @@map("carts")
+}
