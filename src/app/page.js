@@ -1,7 +1,7 @@
 import { getServerSession } from 'next-auth';
 import { redirect } from 'next/navigation';
-import { authOptions } from '../../../lib/auth.js';
-import AdminLayout from '../admin-layout';
+import { authOptions } from '../lib/auth.js';
+import AdminLayout from './admin-layout';
 import DashboardClient from './DashboardClient';
 
 export default async function DashboardPage() {
