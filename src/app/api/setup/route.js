@@ -6,8 +6,9 @@ export async function GET(req) {
       return Response.json({ error: 'TELEGRAM_BOT_TOKEN not set' }, { status: 500 });
     }
 
-    const url = new URL(req.url);
-    const appUrl = process.env.APP_URL || `${url.protocol}//${url.host}`;
+    const host = req.headers.get('x-forwarded-host') || req.headers.get('host');
+    const protocol = req.headers.get('x-forwarded-proto') || 'https';
+    const appUrl = process.env.APP_URL || `${protocol}://${host}`;
     const webhookUrl = `${appUrl}/api/bot/webhook`;
 
     // Set webhook
