@@ -7,12 +7,14 @@ export async function GET() {
   if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
   const products = await prisma.product.findMany({
-    include: { category: true },
+    include: { category: true, credentials: { where: { isSold: false } } },
     orderBy: { id: 'desc' },
   });
 
   return Response.json(products.map((p) => ({
-    ...p, price: Number(p.price),
+    ...p, 
+    price: Number(p.price),
+    stockQty: p.credentials.length
   })));
 }
 
@@ -28,10 +30,25 @@ export async function POST(req) {
       price: BigInt(data.price || 0),
       photoUrl: data.photoUrl || 'https://via.placeholder.com/300',
       categoryId: data.categoryId ? parseInt(data.categoryId) : null,
-      stockQty: data.stockQty || 0,
+      stockQty: 0, // Ignored now, dynamically calculated
       isActive: data.isActive !== false,
     },
   });
+
+  if (data.bulkCredentials) {
+    const lines = data.bulkCredentials.split('\n').map(l => l.trim()).filter(Boolean);
+    const credsToCreate = lines.map(line => {
+      const parts = line.split(':');
+      return {
+        productId: product.id,
+        username: parts[0].trim(),
+        password: parts.slice(1).join(':').trim() || 'N/A'
+      };
+    });
+    if (credsToCreate.length > 0) {
+      await prisma.digitalCredential.createMany({ data: credsToCreate });
+    }
+  }
 
   return Response.json({ ...product, price: Number(product.price) });
 }

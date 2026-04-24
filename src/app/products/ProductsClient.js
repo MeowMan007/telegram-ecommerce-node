@@ -9,7 +9,7 @@ export default function ProductsClient() {
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   
-  const initialForm = { name: '', description: '', price: '', photoUrl: '', categoryId: '', stockQty: 0, isActive: true };
+  const initialForm = { name: '', description: '', price: '', photoUrl: '', categoryId: '', bulkCredentials: '', isActive: true };
   const [form, setForm] = useState(initialForm);
 
   const loadData = () => {
@@ -99,9 +99,7 @@ export default function ProductsClient() {
                   <td>{p.category?.name || '—'}</td>
                   <td>₹{p.price.toLocaleString()}</td>
                   <td>
-                    {p.stockQty === 0 ? <span className="badge purple">Unlimited</span> : 
-                     p.stockQty < 5 ? <span className="badge danger">{p.stockQty} left</span> :
-                     <span className="badge info">{p.stockQty}</span>}
+                    <span className="badge info">{p.stockQty} in stock</span>
                   </td>
                   <td>
                     <span className={`badge ${p.isActive ? 'success' : 'danger'}`}>
@@ -157,9 +155,9 @@ export default function ProductsClient() {
               </div>
 
               <div className="grid-2">
-                <div className="form-group">
-                  <label className="form-label">Stock Qty (0 = unlimited)</label>
-                  <input type="number" className="form-input" min="0" value={form.stockQty} onChange={e => setForm({...form, stockQty: parseInt(e.target.value) || 0})} />
+                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                  <label className="form-label">Add Digital Goods (Format: username:password, one per line)</label>
+                  <textarea className="form-textarea" placeholder="user1:pass1&#10;user2:pass2" value={form.bulkCredentials || ''} onChange={e => setForm({...form, bulkCredentials: e.target.value})} />
                 </div>
                 <div className="form-group">
                   <label className="form-label" style={{ marginBottom: '12px' }}>Status</label>

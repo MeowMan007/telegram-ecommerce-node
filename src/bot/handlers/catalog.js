@@ -126,9 +126,12 @@ async function showProductAtIndex(ctx, products, index, edit = false) {
 
   const text =
     `🏷️ <b>${product.name}</b>\n\n` +
+    `━━━━━━━━━━━━━━━━━━\n\n` +
     `${product.description}\n\n` +
+    `━━━━━━━━━━━━━━━━━━\n\n` +
     `💰 Price: <b>₹${product.price}</b>` +
-    (cartQty > 0 ? `\n🛒 In cart: ${cartQty} pcs = ₹${Number(product.price) * cartQty}` : '');
+    (cartQty > 0 ? `\n🛒 In cart: ${cartQty} pcs = ₹${Number(product.price) * cartQty}` : '') +
+    `\n\n`;
 
   const keyboard = productNavKeyboard(product, index, products.length, cartQty);
 
@@ -175,9 +178,12 @@ async function refreshProductMessage(ctx, productId) {
 
   const text =
     `🏷️ <b>${product.name}</b>\n\n` +
+    `━━━━━━━━━━━━━━━━━━\n\n` +
     `${product.description}\n\n` +
+    `━━━━━━━━━━━━━━━━━━\n\n` +
     `💰 Price: <b>₹${product.price}</b>` +
-    (cartQty > 0 ? `\n🛒 In cart: ${cartQty} pcs = ₹${Number(product.price) * cartQty}` : '');
+    (cartQty > 0 ? `\n🛒 In cart: ${cartQty} pcs = ₹${Number(product.price) * cartQty}` : '') +
+    `\n\n`;
 
   const keyboard = productNavKeyboard(product, index >= 0 ? index : 0, products.length, cartQty);
 

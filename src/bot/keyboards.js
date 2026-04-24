@@ -4,7 +4,6 @@ import { Markup } from 'telegraf';
 export function mainMenuKeyboard() {
   return Markup.keyboard([
     ['📦 Catalog', '🛒 Cart'],
-    ['🔍 Search', '📋 My Orders'],
     ['❓ Help'],
   ]).resize();
 }

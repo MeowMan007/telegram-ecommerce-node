@@ -26,6 +26,7 @@ model Client {
   city        String?
   address     String?
   isActive    Boolean @default(true) @map("is_active")
+  purchaseHistory Json? @default("[]") @map("purchase_history")
   orders      Order[]
 
   @@map("clients")
@@ -49,6 +50,7 @@ model Product {
   price       BigInt
   stockQty    Int       @default(0) @map("stock_quantity")
   isActive    Boolean   @default(true) @map("is_active")
+  credentials DigitalCredential[]
 
   @@map("products")
 }
@@ -129,4 +131,16 @@ model Cart {
 
   @@unique([chatId, productId])
   @@map("carts")
+}
+
+model DigitalCredential {
+  id        Int      @id @default(autoincrement())
+  productId Int      @map("product_id")
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  username  String
+  password  String
+  isSold    Boolean  @default(false) @map("is_sold")
+  orderId   Int?     @map("order_id")
+
+  @@map("digital_credentials")
 }

@@ -79,9 +79,8 @@ export function registerPaymentHandler(bot) {
       `<b>Instructions:</b>\n` +
       `1️⃣ Copy the UPI ID above\n` +
       `2️⃣ Send <b>₹${order.amount}</b> via any UPI app\n` +
-      `3️⃣ Take a <b>screenshot</b> of the payment\n` +
-      `4️⃣ Send the screenshot here as a photo 📸\n\n` +
-      `⏳ Waiting for your payment proof...`;
+      `3️⃣ Type your <b>12-digit UTR</b> (Transaction ID) here\n\n` +
+      `⏳ Waiting for your UTR...`;
 
     ctx.session ??= {};
     ctx.session.awaitingProofOrderId = orderId;
@@ -117,9 +116,8 @@ export function registerPaymentHandler(bot) {
       `<b>Instructions:</b>\n` +
       `1️⃣ Copy the address above\n` +
       `2️⃣ Send <b>$${order.amount} USDT</b> on ${network}\n` +
-      `3️⃣ Take a <b>screenshot</b> or copy the TxHash\n` +
-      `4️⃣ Send the screenshot here as a photo 📸\n\n` +
-      `⏳ Waiting for your payment proof...`;
+      `3️⃣ Type your <b>Transaction Hash (TxHash)</b> here\n\n` +
+      `⏳ Waiting for your TxHash...`;
 
     ctx.session ??= {};
     ctx.session.awaitingProofOrderId = orderId;
@@ -131,35 +129,33 @@ export function registerPaymentHandler(bot) {
     }
   });
 
-  // Handle proof photo upload
-  bot.on('photo', async (ctx, next) => {
+  // Handle proof text upload
+  bot.on('text', async (ctx, next) => {
     ctx.session ??= {};
     const orderId = ctx.session.awaitingProofOrderId;
     if (!orderId) return next();
 
-    ctx.session.awaitingProofOrderId = null;
+    const textInput = ctx.message.text.trim();
+    if (textInput.startsWith('/')) return next();
 
-    const photo = ctx.message.photo;
-    const fileId = photo[photo.length - 1].file_id; // Highest resolution
+    ctx.session.awaitingProofOrderId = null;
 
     // Save proof to order
     await prisma.order.update({
       where: { id: orderId },
-      data: { paymentProofId: fileId, paymentStatus: 'PROOF_SUBMITTED' },
+      data: { paymentProofId: textInput, paymentStatus: 'PROOF_SUBMITTED' },
     });
 
     // Acknowledge to user
     await ctx.reply(
-      `✅ <b>Payment proof received!</b>\n\n` +
+      `✅ <b>Payment transaction ID received!</b>\n\n` +
       `📦 Your order <b>#${orderId}</b> is being verified.\n` +
-      `⏳ Please allow a few hours for confirmation.\n` +
-      `We'll notify you once verified! 🙏\n\n` +
-      `You can track your order in 📋 My Orders.`,
+      `We'll notify you once verified and send your product details instantly! 🙏`,
       { parse_mode: 'HTML', ...mainMenuKeyboard() }
     );
 
     // Notify admin
-    await notifyAdminAboutPayment(ctx, orderId, fileId);
+    await notifyAdminAboutPayment(ctx, orderId, textInput);
   });
 
   // Admin: approve payment
@@ -168,35 +164,83 @@ export function registerPaymentHandler(bot) {
     if (String(ctx.from.id) !== adminChatId) {
       return ctx.answerCbQuery('⛔ Admin only');
     }
-    await ctx.answerCbQuery('✅ Approved!');
     const orderId = parseInt(ctx.match[1]);
-
-    await prisma.order.update({
-      where: { id: orderId },
-      data: { paymentStatus: 'VERIFIED', status: 'PROCESSED' },
-    });
 
     const order = await prisma.order.findUnique({
       where: { id: orderId },
-      include: { client: true },
+      include: { client: true, items: true },
     });
 
-    // Notify user
-    if (order) {
-      await ctx.telegram.sendMessage(
-        order.client.chatId.toString(),
-        `✅ <b>Payment Verified!</b>\n\n` +
-        `Your payment for order <b>#${orderId}</b> has been verified.\n` +
-        `Your order is now being processed! 🎉`,
-        { parse_mode: 'HTML' }
-      );
+    if (!order) return ctx.answerCbQuery('Order not found');
+
+    // Allocate digital credentials
+    const assignedCredentials = [];
+    let outOfStockProduct = null;
+
+    for (const item of order.items) {
+      const credentials = await prisma.digitalCredential.findMany({
+        where: { productId: item.productId, isSold: false },
+        take: item.quantity,
+      });
+
+      if (credentials.length < item.quantity) {
+        outOfStockProduct = item.productName;
+        break;
+      }
+      assignedCredentials.push(...credentials);
     }
 
+    if (outOfStockProduct) {
+      await ctx.answerCbQuery(`❌ OUT OF STOCK: ${outOfStockProduct}`, { show_alert: true });
+      return;
+    }
+
+    await ctx.answerCbQuery('✅ Approved and sending credentials!');
+
+    // Mark as sold
+    for (const cred of assignedCredentials) {
+      await prisma.digitalCredential.update({
+        where: { id: cred.id },
+        data: { isSold: true, orderId: order.id },
+      });
+    }
+
+    // Prepare credentials message
+    let credsMessage = `🎉 <b>Your Digital Goods are here!</b>\n\n`;
+    for (const item of order.items) {
+      credsMessage += `🛍️ <b>${item.productName}</b>\n`;
+      const itemCreds = assignedCredentials.filter(c => c.productId === item.productId);
+      for (const c of itemCreds) {
+        credsMessage += `Username: <code>${c.username}</code>\nPassword: <code>${c.password}</code>\n\n`;
+      }
+    }
+    credsMessage += `Thank you for your purchase!`;
+
+    // Send credentials to client
+    await ctx.telegram.sendMessage(order.client.chatId.toString(), credsMessage, { parse_mode: 'HTML' });
+
+    // Append to purchaseHistory
+    let currentHistory = [];
     try {
-      await ctx.editMessageCaption(
-        ctx.callbackQuery.message.caption + '\n\n✅ APPROVED',
-        { parse_mode: 'HTML' }
-      );
+      if (order.client.purchaseHistory) currentHistory = JSON.parse(order.client.purchaseHistory);
+    } catch {}
+    currentHistory.push({
+      date: new Date().toISOString(),
+      amount: Number(order.amount),
+      items: order.items.map(i => ({ name: i.productName, qty: i.quantity })),
+    });
+
+    await prisma.client.update({
+      where: { id: order.client.id },
+      data: { purchaseHistory: JSON.stringify(currentHistory) }
+    });
+
+    // Delete the order (wiping tracking as requested)
+    await prisma.order.delete({ where: { id: order.id } });
+
+    try {
+      const msgText = ctx.callbackQuery.message.text || 'Payment Verification';
+      await ctx.editMessageText(msgText + '\n\n✅ <b>APPROVED & DELIVERED</b>', { parse_mode: 'HTML' });
     } catch {}
   });
 
@@ -230,15 +274,16 @@ export function registerPaymentHandler(bot) {
     }
 
     try {
-      await ctx.editMessageCaption(
-        ctx.callbackQuery.message.caption + '\n\n❌ REJECTED',
+      const msgText = ctx.callbackQuery.message.text || 'Payment Verification';
+      await ctx.editMessageText(
+        msgText + '\n\n❌ REJECTED',
         { parse_mode: 'HTML' }
       );
     } catch {}
   });
 }
 
-async function notifyAdminAboutPayment(ctx, orderId, fileId) {
+async function notifyAdminAboutPayment(ctx, orderId, utr) {
   const adminChatId = process.env.ADMIN_CHAT_ID;
   if (!adminChatId) return;
 
@@ -252,16 +297,16 @@ async function notifyAdminAboutPayment(ctx, orderId, fileId) {
     .map((i) => `  • ${i.productName} × ${i.quantity} = ₹${Number(i.productPrice) * i.quantity}`)
     .join('\n');
 
-  const caption =
-    `🔔 <b>New Payment Proof!</b>\n\n` +
+  const text =
+    `🔔 <b>New Payment Verification!</b>\n\n` +
     `📦 Order: <b>#${orderId}</b>\n` +
     `👤 Client: ${order.client.name || 'Unknown'}\n` +
     `💳 Method: <b>${order.paymentMethod}</b>\n` +
     `💰 Amount: <b>₹${order.amount}</b>\n\n` +
+    `🔑 Transaction ID (UTR/TxHash):\n<code>${utr}</code>\n\n` +
     `<b>Items:</b>\n${itemsList}`;
 
-  await ctx.telegram.sendPhoto(adminChatId, fileId, {
-    caption,
+  await ctx.telegram.sendMessage(adminChatId, text, {
     parse_mode: 'HTML',
     ...paymentReviewKeyboard(orderId),
   });

@@ -2,8 +2,6 @@ import bot from '../lib/bot.js';
 import { registerStartHandler } from './handlers/start.js';
 import { registerCatalogHandler } from './handlers/catalog.js';
 import { registerCartHandler } from './handlers/cart.js';
-import { registerSearchHandler } from './handlers/search.js';
-import { registerOrdersHandler } from './handlers/orders.js';
 import { registerHelpHandler } from './handlers/help.js';
 import { registerPaymentHandler } from './handlers/payment.js';
 import { registerAdminChatHandler } from './handlers/adminChat.js';
@@ -17,7 +15,6 @@ export function initBot() {
   // Register handlers in order (first match wins for text handlers)
   registerStartHandler(bot);
   registerHelpHandler(bot);
-  registerOrdersHandler(bot);
   registerAnnounceHandler(bot);
 
   // Admin chat handler must be before catalog/search to intercept relay messages
@@ -28,7 +25,6 @@ export function initBot() {
 
   registerCatalogHandler(bot);
   registerCartHandler(bot);
-  registerSearchHandler(bot);
 
   initialized = true;
   return bot;
