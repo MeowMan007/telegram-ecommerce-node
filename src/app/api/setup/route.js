@@ -8,7 +8,8 @@ export async function GET(req) {
 
     const host = req.headers.get('x-forwarded-host') || req.headers.get('host');
     const protocol = req.headers.get('x-forwarded-proto') || 'https';
-    const appUrl = process.env.APP_URL || `${protocol}://${host}`;
+    // Ignore process.env.APP_URL if it contains localhost on production
+    const appUrl = `${protocol}://${host}`;
     const webhookUrl = `${appUrl}/api/bot/webhook`;
 
     // Set webhook
