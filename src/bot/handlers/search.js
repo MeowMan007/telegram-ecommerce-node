@@ -3,14 +3,15 @@ import prisma from '../../lib/prisma.js';
 export function registerSearchHandler(bot) {
   bot.hears('🔍 Search', async (ctx) => {
     await ctx.reply('🔍 <b>Search Products</b>\n\nType the product name you\'re looking for:', { parse_mode: 'HTML' });
-    // Set a simple state flag via session-like approach using a global map
-    searchState.set(ctx.from.id, true);
+    ctx.session ??= {};
+    ctx.session.isSearching = true;
   });
 
   // Handle text input when in search mode
   bot.on('text', async (ctx, next) => {
-    if (!searchState.get(ctx.from.id)) return next();
-    searchState.delete(ctx.from.id);
+    ctx.session ??= {};
+    if (!ctx.session.isSearching) return next();
+    ctx.session.isSearching = false;
 
     const query = ctx.message.text.trim();
     if (query.startsWith('/') || ['📦 Catalog', '🛒 Cart', '🔍 Search', '📋 My Orders', '❓ Help'].includes(query)) {
@@ -44,5 +45,3 @@ export function registerSearchHandler(bot) {
     });
   });
 }
-
-const searchState = new Map();

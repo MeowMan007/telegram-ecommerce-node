@@ -1,8 +1,7 @@
 import prisma from '../../lib/prisma.js';
 import { paymentMethodKeyboard, paymentReviewKeyboard, mainMenuKeyboard } from '../keyboards.js';
 
-// Track users in payment proof upload state
-const awaitingProof = new Map();
+// Track users in payment proof upload state via session
 
 export function registerPaymentHandler(bot) {
   // Checkout: create order and show payment methods
@@ -84,7 +83,8 @@ export function registerPaymentHandler(bot) {
       `4️⃣ Send the screenshot here as a photo 📸\n\n` +
       `⏳ Waiting for your payment proof...`;
 
-    awaitingProof.set(ctx.from.id, orderId);
+    ctx.session ??= {};
+    ctx.session.awaitingProofOrderId = orderId;
 
     try {
       await ctx.editMessageText(text, { parse_mode: 'HTML' });
@@ -121,7 +121,8 @@ export function registerPaymentHandler(bot) {
       `4️⃣ Send the screenshot here as a photo 📸\n\n` +
       `⏳ Waiting for your payment proof...`;
 
-    awaitingProof.set(ctx.from.id, orderId);
+    ctx.session ??= {};
+    ctx.session.awaitingProofOrderId = orderId;
 
     try {
       await ctx.editMessageText(text, { parse_mode: 'HTML' });
@@ -132,10 +133,11 @@ export function registerPaymentHandler(bot) {
 
   // Handle proof photo upload
   bot.on('photo', async (ctx, next) => {
-    const orderId = awaitingProof.get(ctx.from.id);
+    ctx.session ??= {};
+    const orderId = ctx.session.awaitingProofOrderId;
     if (!orderId) return next();
 
-    awaitingProof.delete(ctx.from.id);
+    ctx.session.awaitingProofOrderId = null;
 
     const photo = ctx.message.photo;
     const fileId = photo[photo.length - 1].file_id; // Highest resolution
@@ -265,4 +267,4 @@ async function notifyAdminAboutPayment(ctx, orderId, fileId) {
   });
 }
 
-export { awaitingProof };
+}

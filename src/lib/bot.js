@@ -1,4 +1,4 @@
-import { Telegraf } from 'telegraf';
+import { Telegraf, session } from 'telegraf';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 
@@ -8,8 +8,13 @@ if (!BOT_TOKEN) {
   console.warn('⚠️ TELEGRAM_BOT_TOKEN not set');
 } else {
   const globalForBot = globalThis;
-  bot = globalForBot._bot ?? new Telegraf(BOT_TOKEN);
-  if (process.env.NODE_ENV !== 'production') globalForBot._bot = bot;
+  if (!globalForBot._bot) {
+    bot = new Telegraf(BOT_TOKEN);
+    bot.use(session());
+    if (process.env.NODE_ENV !== 'production') globalForBot._bot = bot;
+  } else {
+    bot = globalForBot._bot;
+  }
 }
 
 export default bot;
