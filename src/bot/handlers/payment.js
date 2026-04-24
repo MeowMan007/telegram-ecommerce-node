@@ -266,5 +266,3 @@ async function notifyAdminAboutPayment(ctx, orderId, fileId) {
     ...paymentReviewKeyboard(orderId),
   });
 }
-
-}
