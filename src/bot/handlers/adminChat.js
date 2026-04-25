@@ -1,7 +1,59 @@
 import prisma from '../../lib/prisma.js';
+import { mainMenuKeyboard } from '../keyboards.js';
 
 export function registerAdminChatHandler(bot) {
   const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
+
+  // User taps "💬 Talk to Admin" button
+  bot.hears('💬 Talk to Admin', async (ctx) => {
+    const clientChatId = BigInt(ctx.from.id);
+
+    // Check if user already has an active ticket
+    const existing = await prisma.adminChatSession.findFirst({
+      where: { clientChatId, isActive: true },
+    });
+
+    if (existing) {
+      return ctx.reply(
+        `📩 You already have an open support ticket.\n\nJust type your message here and it will be sent to the admin.\n\nThe admin will close the ticket when the conversation is over.`,
+        { parse_mode: 'HTML' }
+      );
+    }
+
+    // Get or create client record
+    const client = await prisma.client.findUnique({ where: { chatId: clientChatId } });
+    const clientName = client?.name || ctx.from.first_name || 'Customer';
+
+    // Create a new ticket (chat session)
+    await prisma.adminChatSession.create({
+      data: {
+        adminChatId: BigInt(ADMIN_CHAT_ID),
+        clientChatId,
+        clientName,
+        isActive: true,
+      },
+    });
+
+    await ctx.reply(
+      `📩 <b>Support Ticket Opened!</b>\n\n` +
+      `Your message will be forwarded to the admin.\n` +
+      `Type your question or concern below 👇\n\n` +
+      `The admin will reply here directly.`,
+      { parse_mode: 'HTML' }
+    );
+
+    // Notify admin about the new ticket
+    await ctx.telegram.sendMessage(
+      ADMIN_CHAT_ID,
+      `🎫 <b>New Support Ticket!</b>\n\n` +
+      `👤 From: <b>${clientName}</b>\n` +
+      `🆔 Chat ID: <code>${clientChatId}</code>\n\n` +
+      `Their messages will appear here.\n` +
+      `Type replies and they'll be forwarded.\n` +
+      `Use /close when done.`,
+      { parse_mode: 'HTML' }
+    );
+  });
 
   // Admin clicks "Reply to Customer" from payment proof notification
   bot.action(/^reply_(\d+)$/, async (ctx) => {
@@ -76,8 +128,8 @@ export function registerAdminChatHandler(bot) {
     // Notify customer
     await ctx.telegram.sendMessage(
       session.clientChatId.toString(),
-      `✅ <b>Support session closed.</b>\n\nThank you for reaching out! If you need more help, just send a message.`,
-      { parse_mode: 'HTML' }
+      `✅ <b>Support session closed.</b>\n\nThank you for reaching out! If you need more help, tap "💬 Talk to Admin" again.`,
+      { parse_mode: 'HTML', ...mainMenuKeyboard() }
     );
   });
 
