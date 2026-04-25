@@ -68,6 +68,7 @@ export function registerPaymentHandler(bot) {
 
     const settings = await prisma.botSettings.findUnique({ where: { id: 1 } });
     const upiId = settings?.upiId || 'Not configured';
+    const upiQrUrl = settings?.upiQrUrl || '';
 
     const text =
       `💳 <b>UPI Payment</b>\n\n` +
@@ -77,13 +78,24 @@ export function registerPaymentHandler(bot) {
       `📲 UPI ID: <code>${upiId}</code>\n` +
       `━━━━━━━━━━━━━━━━━━\n\n` +
       `<b>Instructions:</b>\n` +
-      `1️⃣ Copy the UPI ID above\n` +
+      `1️⃣ Copy the UPI ID above${upiQrUrl ? ' or scan the QR code' : ''}\n` +
       `2️⃣ Send <b>₹${order.amount}</b> via any UPI app\n` +
       `3️⃣ Type your <b>12-digit UTR</b> (Transaction ID) here\n\n` +
       `⏳ Waiting for your UTR...`;
 
     ctx.session ??= {};
     ctx.session.awaitingProofOrderId = orderId;
+
+    // Send QR code image if available
+    if (upiQrUrl) {
+      try {
+        await ctx.replyWithPhoto(upiQrUrl, {
+          caption: text,
+          parse_mode: 'HTML',
+        });
+        return;
+      } catch { /* fall through to text */ }
+    }
 
     try {
       await ctx.editMessageText(text, { parse_mode: 'HTML' });

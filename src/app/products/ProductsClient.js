@@ -9,7 +9,7 @@ export default function ProductsClient() {
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
   
-  const initialForm = { name: '', description: '', price: '', photoUrl: '', categoryId: '', bulkCredentials: '', isActive: true };
+  const initialForm = { name: '', description: '', price: '', photoUrl: '', categoryId: '', stockQty: 0, isActive: true };
   const [form, setForm] = useState(initialForm);
 
   const loadData = () => {
@@ -99,7 +99,9 @@ export default function ProductsClient() {
                   <td>{p.category?.name || '—'}</td>
                   <td>₹{p.price.toLocaleString()}</td>
                   <td>
-                    <span className="badge info">{p.stockQty} in stock</span>
+                    <span className={`badge ${p.stockQty < 5 ? 'danger' : 'info'}`}>
+                      {p.stockQty} in stock
+                    </span>
                   </td>
                   <td>
                     <span className={`badge ${p.isActive ? 'success' : 'danger'}`}>
@@ -155,9 +157,13 @@ export default function ProductsClient() {
               </div>
 
               <div className="grid-2">
-                <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                  <label className="form-label">Add Digital Goods (Format: username:password, one per line)</label>
-                  <textarea className="form-textarea" placeholder="user1:pass1&#10;user2:pass2" value={form.bulkCredentials || ''} onChange={e => setForm({...form, bulkCredentials: e.target.value})} />
+                <div className="form-group">
+                  <label className="form-label">Stock Quantity</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <button type="button" className="btn btn-sm btn-danger" onClick={() => setForm({...form, stockQty: Math.max(0, (parseInt(form.stockQty) || 0) - 1)})}>−</button>
+                    <input type="number" className="form-input" min="0" style={{ width: '80px', textAlign: 'center' }} value={form.stockQty} onChange={e => setForm({...form, stockQty: parseInt(e.target.value) || 0})} />
+                    <button type="button" className="btn btn-sm btn-primary" onClick={() => setForm({...form, stockQty: (parseInt(form.stockQty) || 0) + 1})}>+</button>
+                  </div>
                 </div>
                 <div className="form-group">
                   <label className="form-label" style={{ marginBottom: '12px' }}>Status</label>

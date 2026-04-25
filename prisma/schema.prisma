@@ -96,6 +96,7 @@ model Message {
 model BotSettings {
   id          Int    @id @default(1)
   upiId       String @default("") @map("upi_id")
+  upiQrUrl    String @default("") @map("upi_qr_url")
   usdtAddress String @default("") @map("usdt_address")
   usdtNetwork String @default("TRC20") @map("usdt_network")
 

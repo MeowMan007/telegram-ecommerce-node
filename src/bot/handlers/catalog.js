@@ -1,5 +1,5 @@
 import prisma from '../../lib/prisma.js';
-import { categoriesKeyboard, productNavKeyboard } from '../keyboards.js';
+import { categoriesKeyboard, categoryProductsKeyboard } from '../keyboards.js';
 
 export function registerCatalogHandler(bot) {
   // Text button: "📦 Catalog"
@@ -13,33 +13,11 @@ export function registerCatalogHandler(bot) {
     await showCategories(ctx);
   });
 
-  // Callback: select category
+  // Callback: select category — show ALL products at once
   bot.action(/^cat_(\d+)$/, async (ctx) => {
     await ctx.answerCbQuery();
     const categoryId = parseInt(ctx.match[1]);
-    await showProductInCategory(ctx, categoryId, 0);
-  });
-
-  // Callback: product navigation
-  bot.action(/^pnav_(prev|next)_(\d+)_(\d+)$/, async (ctx) => {
-    await ctx.answerCbQuery();
-    const direction = ctx.match[1];
-    const categoryId = parseInt(ctx.match[2]);
-    const currentIndex = parseInt(ctx.match[3]);
-
-    const products = await prisma.product.findMany({
-      where: { categoryId, isActive: true },
-      orderBy: { id: 'asc' },
-    });
-
-    let newIndex;
-    if (direction === 'prev') {
-      newIndex = currentIndex <= 0 ? products.length - 1 : currentIndex - 1;
-    } else {
-      newIndex = currentIndex >= products.length - 1 ? 0 : currentIndex + 1;
-    }
-
-    await showProductAtIndex(ctx, products, newIndex, true);
+    await showCategoryProducts(ctx, categoryId);
   });
 
   // Callback: add product to cart
@@ -54,8 +32,11 @@ export function registerCatalogHandler(bot) {
       create: { chatId, productId, quantity: 1 },
     });
 
-    // Refresh the product message
-    await refreshProductMessage(ctx, productId);
+    // Refresh the category product list
+    const product = await prisma.product.findUnique({ where: { id: productId } });
+    if (product?.categoryId) {
+      await showCategoryProducts(ctx, product.categoryId, true);
+    }
   });
 
   // Callback: remove product from cart
@@ -82,7 +63,10 @@ export function registerCatalogHandler(bot) {
       }
     }
 
-    await refreshProductMessage(ctx, productId);
+    const product = await prisma.product.findUnique({ where: { id: productId } });
+    if (product?.categoryId) {
+      await showCategoryProducts(ctx, product.categoryId, true);
+    }
   });
 
   // Noop for display-only buttons
@@ -102,38 +86,49 @@ async function showCategories(ctx) {
   });
 }
 
-async function showProductInCategory(ctx, categoryId, index) {
+async function showCategoryProducts(ctx, categoryId, edit = false) {
   const products = await prisma.product.findMany({
     where: { categoryId, isActive: true },
     orderBy: { id: 'asc' },
   });
 
   if (products.length === 0) {
-    return ctx.reply('😔 No products in this category yet.');
+    const msg = '😔 No products in this category yet.';
+    if (edit && ctx.callbackQuery) {
+      try { await ctx.editMessageText(msg); } catch { await ctx.reply(msg); }
+    } else {
+      await ctx.reply(msg);
+    }
+    return;
   }
 
-  await showProductAtIndex(ctx, products, index, false);
-}
-
-async function showProductAtIndex(ctx, products, index, edit = false) {
-  const product = products[index];
   const chatId = BigInt(ctx.from.id);
 
-  const cartItem = await prisma.cart.findUnique({
-    where: { chatId_productId: { chatId, productId: product.id } },
-  });
-  const cartQty = cartItem?.quantity || 0;
+  // Build cart map { productId: quantity }
+  const cartItems = await prisma.cart.findMany({ where: { chatId } });
+  const cartMap = {};
+  for (const ci of cartItems) {
+    cartMap[ci.productId] = ci.quantity;
+  }
 
-  const text =
-    `🏷️ <b>${product.name}</b>\n\n` +
-    `━━━━━━━━━━━━━━━━━━\n\n` +
-    `${product.description}\n\n` +
-    `━━━━━━━━━━━━━━━━━━\n\n` +
-    `💰 Price: <b>₹${product.price}</b>` +
-    (cartQty > 0 ? `\n🛒 In cart: ${cartQty} pcs = ₹${Number(product.price) * cartQty}` : '') +
-    `\n\n`;
+  // Build the product listing text
+  const category = await prisma.category.findUnique({ where: { id: categoryId } });
+  let text = `📁 <b>${category?.name || 'Products'}</b>\n\n`;
 
-  const keyboard = productNavKeyboard(product, index, products.length, cartQty);
+  for (const p of products) {
+    const qty = cartMap[p.id] || 0;
+    text += `🏷️ <b>${p.name}</b>  —  ₹${p.price}\n`;
+    text += `${p.description}\n`;
+    if (qty > 0) {
+      text += `🛒 <i>In cart: ${qty} × ₹${p.price} = ₹${Number(p.price) * qty}</i>\n`;
+    }
+    text += `\n`;
+  }
+
+  text += `━━━━━━━━━━━━━━━━━━\n`;
+  text += `✅ <i>Tap a product to add, then go to Cart to checkout!</i>`;
+
+  const keyboard = categoryProductsKeyboard(products, cartMap);
 
   if (edit && ctx.callbackQuery) {
     try {
@@ -142,57 +137,6 @@ async function showProductAtIndex(ctx, products, index, edit = false) {
       await ctx.reply(text, { parse_mode: 'HTML', ...keyboard });
     }
   } else {
-    if (product.photoUrl && product.photoUrl.startsWith('http')) {
-      try {
-        await ctx.replyWithPhoto(product.photoUrl, {
-          caption: text,
-          parse_mode: 'HTML',
-          ...keyboard,
-        });
-        return;
-      } catch { /* fall through to text */ }
-    }
     await ctx.reply(text, { parse_mode: 'HTML', ...keyboard });
-  }
-}
-
-async function refreshProductMessage(ctx, productId) {
-  const chatId = BigInt(ctx.from.id);
-  const product = await prisma.product.findUnique({
-    where: { id: productId },
-    include: { category: true },
-  });
-  if (!product) return;
-
-  const cartItem = await prisma.cart.findUnique({
-    where: { chatId_productId: { chatId, productId } },
-  });
-  const cartQty = cartItem?.quantity || 0;
-
-  // Find product index in its category
-  const products = await prisma.product.findMany({
-    where: { categoryId: product.categoryId, isActive: true },
-    orderBy: { id: 'asc' },
-  });
-  const index = products.findIndex((p) => p.id === productId);
-
-  const text =
-    `🏷️ <b>${product.name}</b>\n\n` +
-    `━━━━━━━━━━━━━━━━━━\n\n` +
-    `${product.description}\n\n` +
-    `━━━━━━━━━━━━━━━━━━\n\n` +
-    `💰 Price: <b>₹${product.price}</b>` +
-    (cartQty > 0 ? `\n🛒 In cart: ${cartQty} pcs = ₹${Number(product.price) * cartQty}` : '') +
-    `\n\n`;
-
-  const keyboard = productNavKeyboard(product, index >= 0 ? index : 0, products.length, cartQty);
-
-  try {
-    await ctx.editMessageText(text, { parse_mode: 'HTML', ...keyboard });
-  } catch {
-    // If can't edit (e.g., photo message), send new
-    try {
-      await ctx.editMessageCaption(text, { parse_mode: 'HTML', ...keyboard });
-    } catch { /* ignore */ }
   }
 }

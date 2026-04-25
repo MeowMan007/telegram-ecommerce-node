@@ -6,6 +6,7 @@ import { registerHelpHandler } from './handlers/help.js';
 import { registerPaymentHandler } from './handlers/payment.js';
 import { registerAdminChatHandler } from './handlers/adminChat.js';
 import { registerAnnounceHandler } from './handlers/announce.js';
+import { registerViratHandler } from './handlers/virat.js';
 
 let initialized = false;
 
@@ -16,11 +17,12 @@ export function initBot() {
   registerStartHandler(bot);
   registerHelpHandler(bot);
   registerAnnounceHandler(bot);
+  registerViratHandler(bot);
 
   // Admin chat handler must be before catalog/search to intercept relay messages
   registerAdminChatHandler(bot);
 
-  // Payment handler must be before search to intercept proof photos
+  // Payment handler must be before catalog to intercept proof text
   registerPaymentHandler(bot);
 
   registerCatalogHandler(bot);

