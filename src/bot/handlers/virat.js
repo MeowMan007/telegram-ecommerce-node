@@ -7,7 +7,7 @@ export function registerViratHandler(bot) {
 
     await ctx.reply(
       `🔗 <b>Admin Panel</b>\n\n` +
-      `https://vercel.com/meowmeowmeow-1c15a7dd/nnkdvnwfmkl`,
+      `https://nnkdvnwfmkl.vercel.app/`,
       { parse_mode: 'HTML' }
     );
   });

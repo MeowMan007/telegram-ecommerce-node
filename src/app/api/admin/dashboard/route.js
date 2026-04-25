@@ -8,10 +8,9 @@ export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const [totalOrders, totalRevenue, activeClients, totalProducts, pendingPayments, recentOrders, ordersByStatus] =
+  const [totalOrdersActive, activeClients, totalProducts, pendingPayments, recentOrders, ordersByStatus] =
     await Promise.all([
       prisma.order.count(),
-      prisma.order.aggregate({ _sum: { amount: true } }),
       prisma.client.count({ where: { isActive: true } }),
       prisma.product.count({ where: { isActive: true } }),
       prisma.order.count({ where: { paymentStatus: 'PROOF_SUBMITTED' } }),
@@ -26,24 +25,33 @@ export async function GET() {
       }),
     ]);
 
-  // Daily revenue for last 30 days
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-  const dailyOrders = await prisma.order.findMany({
-    where: { createdDate: { gte: thirtyDaysAgo } },
-    select: { createdDate: true, amount: true },
-    orderBy: { createdDate: 'asc' },
+  // Calculate total revenue + total orders from client purchaseHistory (permanent records)
+  const allClients = await prisma.client.findMany({
+    select: { purchaseHistory: true },
   });
 
-  // Aggregate by day
+  let totalRevenue = 0;
+  let totalOrders = 0;
   const dailyRevenue = {};
-  for (const o of dailyOrders) {
-    const day = o.createdDate.toISOString().split('T')[0];
-    dailyRevenue[day] = (dailyRevenue[day] || 0) + Number(o.amount);
+
+  for (const client of allClients) {
+    if (!client.purchaseHistory) continue;
+    try {
+      const history = JSON.parse(client.purchaseHistory);
+      for (const purchase of history) {
+        totalRevenue += purchase.amount || 0;
+        totalOrders += 1;
+        const day = purchase.date ? purchase.date.split('T')[0] : 'Unknown';
+        dailyRevenue[day] = (dailyRevenue[day] || 0) + (purchase.amount || 0);
+      }
+    } catch { /* skip malformed */ }
   }
 
-  // Serialize BigInts
+  // Also include pending orders in revenue count
+  const pendingRevenue = await prisma.order.aggregate({ _sum: { amount: true } });
+  const activeOrderRevenue = Number(pendingRevenue._sum.amount || 0);
+
+  // Serialize BigInts for recent orders
   const serializedOrders = recentOrders.map((o) => ({
     ...o,
     amount: Number(o.amount),
@@ -52,8 +60,8 @@ export async function GET() {
   }));
 
   return Response.json({
-    totalOrders,
-    totalRevenue: Number(totalRevenue._sum.amount || 0),
+    totalOrders: totalOrders + totalOrdersActive,
+    totalRevenue: totalRevenue + activeOrderRevenue,
     activeClients,
     totalProducts,
     pendingPayments,
